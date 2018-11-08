@@ -4,17 +4,10 @@
 
 
 /********************************************************
-*
-* MPLAB X IDE v1.95 and XC16 v1.20
-*
-* * Pinout using the PIC24HJ32GP202
-*
-*	RB6     - LCD I/O D4
-*       RB7     - LCD I/O D5
-*       RB10    - LCD I/O D6
-*       RB11    - LCD I/O D7
-*	RA0     - LCD E Clocking Pin
-*	RB5     - LCD R/S Pin
+ * Lab 4
+ * Jacob Sword and Jack Degregorio
+ * 
+ * 
 
 ********************************************************/
 
@@ -59,12 +52,23 @@ const int Twentyms = 3000;
 const int Fivems = 1000;
 const int TwoHundredus = 40;
 
+// LCD Functions
 void Configure_LCD_pins(void);
 void LCDWrite(int LCDData, int RSValue);
 void Init_LCD(void);
 void Clear_LCD(void);
 void LCD_Display(char Display[16]);
 
+//I2C Functions
+void init_I2C(void);
+void nack(void);
+void ack(void);
+void restart();
+void stop();
+void start();
+void wait_for_idle();
+void write_to_rtc(int);
+void read_from_rtc(int*);
 
 void delay_routine(void)
 {
@@ -76,62 +80,57 @@ void delay_routine(void)
 	return;
 
 }
-/******** END OF delay_routine *************************/
-
-/********************************************************
-* Function: main
-*
-* Description:  Flash RB15 on and off
-*
-* Notes:
-*
-* RB15 - 
-*
-* Returns:  This routine contains an infinite loop
-*
-********************************************************/
 
 int main()
 {
 
     char Display[32];
-    int count, x, y;
+    int rtc_val;
 
     Configure_LCD_pins();
 
-    count = 0;
-    y = 0;
-
     Init_LCD();					//initialize the LCD Display
     Clear_LCD();				//clear the LCD screen
-
-    while(1)              			// Loop Forever
-    {
-        Clear_LCD();				// Clears the LCD screen
-        sprintf(Display,"The count is...");
-        LCD_Display(Display);
-
-        LCDWrite(0b11000000, 0);    		//  Move Cursor to the Second Line
-
-        sprintf(Display,"     %4d", count);
-        LCD_Display(Display);
-        
-        for (x = 0; x < 1320; x++);  		//  20 ms Delay Loop
-
-        y += 1;              		//  Increment the Counter?
-        if (25 == y)            		//  1/4 Second Passed?
-        {
-            count++;     			//  Increment the Counter
-            y = 0; 	             		//  Reset for another 1/4 Second
-        } 
-     }
+    
+    init_I2C();
+    start();
+    wait_for_idle();
+    
+    write_to_rtc(0xD0); //x68 is addr, followed by binary 0 for write
+    write_to_rtc(0); //send beginning addr, will auto-increment in following writes
+    write_to_rtc(0x37); //55 seconds
+    write_to_rtc(0x37); //55 seconds
+    write_to_rtc(0x37); //55 seconds
+    write_to_rtc(0x05); //5th day
+    write_to_rtc(0x19); //25th day
+    write_to_rtc(0x05); //5th month
+    write_to_rtc(0x37); //55th year?
+    stop();
+    start();
+    write_to_rtc(0xD0); //x68 is addr, followed by binary 0 for write
+    write_to_rtc(0x00); //reset address pointer
+    stop();
+    start();
+    write_to_rtc(0xD1); //addr + 1 for read now
+    I2C1CONbits.RCEN = 1;   //enable receiver mode
+    while (I2C1CONbits.RCEN);   //wait till over
+    read_from_rtc(&rtc_val);
+//    nack();   not working, need to figure out
+    stop();
+    
+    sprintf(Display,"The RTC reads:");
+    LCD_Display(Display);
+    LCDWrite(0b11000000, 0);    		//  Move Cursor to the Second Line
+    sprintf(Display,"     %4d", rtc_val);
+    LCD_Display(Display);
 
  
-//return;
+    return 0;
  
 }
 
-/******** END OF main ROUTINE ***************************/
+
+/***************LCD FUNCTIONS**************/
 
 void Configure_LCD_pins(void)
 {
@@ -253,3 +252,68 @@ void LCD_Display(char Display[16])
 	for (ind = 0; Display[ind] != 0; ind++)
         LCDWrite(Display[ind], 1);
 }  						// End LCD_Display
+
+/*******************I2C FUNCTIONS***********************/
+
+void wait_for_idle(void)
+{
+    // I2C1CONbits = 00000 corresponds to bus idle/wait
+    while(I2C1CON & 0x1F); // Acknowledge sequences/conditions not in progress
+    while(I2C1STATbits.TRSTAT); // Ensure Master transmit is not in progress
+}
+
+void init_I2C(void)
+{
+    I2C1BRG = 34;           //baud rate generator
+    I2C1CONbits.I2CEN = 1;  //enable I2C module --> I2C pins controlled by ports
+    I2C1CONbits.DISSLW = 1; //slew rate control
+}
+
+void start(void)
+{
+    wait_for_idle();
+    I2C1CONbits.SEN = 1;     //start condition
+    while (I2C1CONbits.SEN); //wait till end of start sequence
+}
+
+void stop(void)
+{
+    wait_for_idle();
+    I2C1CONbits.PEN = 1;    // stop condition
+    while (I2C1CONbits.PEN); //wait till stop sequence over
+}
+
+void restart(void)
+{
+    wait_for_idle();
+    I2C1CONbits.RSEN = 1;   //initiate repeated start on SDAx/SCLx
+    while (I2C1CONbits.RSEN);    //wait till repeated start sequence over
+}
+
+void ack(void)
+{
+    wait_for_idle();
+    I2C1CONbits.ACKDT = 0;  //send ack during acknowledge
+    I2C1CONbits.ACKEN = 1;  //init acknowledge --> trans ACKDT
+    while (I2C1CONbits.ACKEN);  //wait till ack seq over
+}
+
+void nack(void)
+{
+    wait_for_idle();
+    I2C1CONbits.ACKDT = 1;  //send nack during acknowledge
+    I2C1CONbits.ACKEN = 1;  //init acknowledge --> trans ACKDT
+    while (I2C1CONbits.ACKEN);   //wait till nack seq over
+}
+
+void write_to_rtc(int val)
+{
+    I2C1TRN = val; //55 seconds
+    while (I2C1STATbits.TRSTAT);    //wait till trans over
+}
+
+void read_from_rtc(int *buffer)
+{
+    while(!I2C1STATbits.RBF);   //wait until receive buffer full
+    *buffer = I2C1RCV;  //take from full receive register
+}
