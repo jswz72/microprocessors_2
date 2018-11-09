@@ -105,33 +105,26 @@ int main()
     write_to_rtc(0x19); //25th day
     write_to_rtc(0x05); //5th month
     write_to_rtc(0x37); //55th year?
-    stop();
-    start();
-    write_to_rtc(0xD0); //x68 is addr, followed by binary 0 for write
-    write_to_rtc(0x00); //reset address pointer
-    stop();
-    start();
-    write_to_rtc(0xD1); //addr + 1 for read now
     
-    I2C1CONbits.RCEN = 1;   //enable receiver mode
-    while (I2C1CONbits.RCEN);   //wait till over
-    read_from_rtc(&rtc_val);
-    ack();
     
-    sprintf(Display,"%d", rtc_val);
-    LCD_Display(Display);
-            LCD_Display("asdf");
+    while (1) {
+        stop();
+        start();
+        write_to_rtc(0xD0); //x68 is addr, followed by binary 0 for write
+        write_to_rtc(0x00); //reset address pointer
+        stop();
+        start();
+        write_to_rtc(0xD1); //addr + 1 for read now
+        Clear_LCD();
+        I2C1CONbits.RCEN = 1;   //enable receiver mode
+        while (I2C1CONbits.RCEN);   //wait till over
+        read_from_rtc(&rtc_val);
+//        nack();
 
-    I2C1CONbits.RCEN = 1;   //enable receiver mode
-    while (I2C1CONbits.RCEN);   //wait till over
-    read_from_rtc(&rtc_val);
-    stop();
+        sprintf(Display,"%d", rtc_val);
+        LCD_Display(Display);
 
-    
-    sprintf(Display,"%d", rtc_val);
-    LCD_Display(Display);
-
- 
+    }
     return 0;
  
 }
