@@ -1,6 +1,7 @@
 #include "xc.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 /********************************************************
@@ -85,8 +86,28 @@ int main()
 {
 
     char Display[32];
-    int rtc_val;
-
+    int sec_val; 
+    int sec_val1 = 0; 
+    int sec_val2 = 0;
+    int min_val;
+    int min_val1 = 0;
+    int min_val2 = 0;
+    int hr_val;
+    int hr_val1 = 0;
+    int hr_val2 = 0;
+    int day_val;
+    int date_val, date_val1, date_val2, month_val, month_val1, month_val2, year_val, year_val1, year_val2;
+    
+    int time_config[7] = {
+        0x00,   // second
+        0x20,   // minute
+        0x15,   // hour
+        0x05,   // day of week
+        0x09,   // date of month
+        0x11,   // month
+        0x18    // year
+    };
+    
     Configure_LCD_pins();
 
     Init_LCD();					//initialize the LCD Display
@@ -95,16 +116,7 @@ int main()
     init_I2C();
     start();
     wait_for_idle();
-    
-    write_to_rtc(0xD0); //x68 is addr, followed by binary 0 for write
-    write_to_rtc(0); //send beginning addr, will auto-increment in following writes
-    write_to_rtc(0x37); //55 seconds
-    write_to_rtc(0x06); //55 seconds
-    write_to_rtc(0x37); //55 seconds
-    write_to_rtc(0x05); //5th day
-    write_to_rtc(0x19); //25th day
-    write_to_rtc(0x05); //5th month
-    write_to_rtc(0x37); //55th year?
+    rtc_set_time(time_config, 7);
     
     
     while (1) {
@@ -116,14 +128,60 @@ int main()
         start();
         write_to_rtc(0xD1); //addr + 1 for read now
         Clear_LCD();
+        
         I2C1CONbits.RCEN = 1;   //enable receiver mode
         while (I2C1CONbits.RCEN);   //wait till over
-        read_from_rtc(&rtc_val);
-//        nack();
-
-        sprintf(Display,"%d", rtc_val);
+        read_from_rtc(&sec_val);
+        ack();
+        
+        I2C1CONbits.RCEN = 1;   //enable receiver mode
+        while (I2C1CONbits.RCEN);   //wait till over
+        read_from_rtc(&min_val);
+        ack();
+        
+        I2C1CONbits.RCEN = 1;   //enable receiver mode
+        while (I2C1CONbits.RCEN);   //wait till over
+        read_from_rtc(&hr_val);
+        ack();
+        
+        I2C1CONbits.RCEN = 1;   //enable receiver mode
+        while (I2C1CONbits.RCEN);   //wait till over
+        read_from_rtc(&day_val);
+        ack();
+        
+        I2C1CONbits.RCEN = 1;   //enable receiver mode
+        while (I2C1CONbits.RCEN);   //wait till over
+        read_from_rtc(&date_val);
+        ack();
+        
+        I2C1CONbits.RCEN = 1;   //enable receiver mode
+        while (I2C1CONbits.RCEN);   //wait till over
+        read_from_rtc(&month_val);
+        ack();
+        
+        I2C1CONbits.RCEN = 1;   //enable receiver mode
+        while (I2C1CONbits.RCEN);   //wait till over
+        read_from_rtc(&year_val); 
+        nack();
+        
+        hr_val1 = hr_val & 0x0F;
+        hr_val2 = hr_val >> 4;
+        min_val1 = min_val & 0x0F;
+        min_val2 = min_val >> 4;
+        sec_val1 = sec_val & 0x0F;
+        sec_val2 = sec_val >> 4;
+        date_val1 = date_val & 0x0F;
+        date_val2 = date_val >> 4;
+        month_val1 = month_val & 0x0F;
+        month_val2 = month_val >> 4;
+        year_val1 = year_val & 0x0F;
+        year_val2 = year_val >> 4;
+        
+        sprintf(Display,"Time: %d%d:%d%d:%d%d", hr_val2, hr_val1, min_val2, min_val1, sec_val2, sec_val1);
         LCD_Display(Display);
-
+        LCDWrite(0b11000000, 0);    		//  Move Cursor to the Second Line
+        sprintf(Display,"Date: %d %d%d-%d%d-%d%d", day_val, date_val2, date_val1, month_val2, month_val1, year_val2, year_val1);
+        LCD_Display(Display);
     }
     return 0;
  
@@ -181,12 +239,12 @@ void LCDWrite(int LCDData, int RSValue)
     E = 1;
     E = 0;              		//  Toggle the Low 4 Bits Out
 
-    if ((0 == (LCDData & 0xFC)) && (0 == RSValue))
-        n = Fivems;
-    else
-        n = TwoHundredus;
+//    if ((0 == (LCDData & 0xFC)) && (0 == RSValue))
+//        n = Fivems;
+//    else
+//        n = TwoHundredus;
         
-    for (k = 0; k < n; k++);    		//  Delay for Character
+    for (k = 0; k < Fivems; k++);    		//  Delay for Character
 
 }  //  End LCDWrite
 
@@ -316,4 +374,14 @@ void read_from_rtc(int *buffer)
 {
     while(!I2C1STATbits.RBF);   //wait until receive buffer full
     *buffer = I2C1RCV;  //take from full receive register
+}
+
+void rtc_set_time(int time_config[], int size)
+{
+    int i;
+    write_to_rtc(0xD0);  //x68 is addr, followed by binary 0 for write
+    write_to_rtc(0); //send beginning addr, will auto-increment in following writes
+    for (i = 0; i < size; i++) {
+        write_to_rtc(time_config[i]);
+    }
 }
