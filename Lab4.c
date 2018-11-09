@@ -64,40 +64,20 @@ void LCD_Display(char Display[16]);
 void init_I2C(void);
 void nack(void);
 void ack(void);
-void restart();
-void stop();
-void start();
+void restart_I2C();
+void stop_I2C();
+void start_I2C();
 void wait_for_idle();
 void write_to_rtc(int);
-void read_from_rtc(int*);
-
-void delay_routine(void)
-{
-
-	unsigned short i, j;			// 16 bits
-	
-		for (i = 0; i < 800; i++)  
-                for (j = 0; j < 800; j++);
-	return;
-
-}
+int read_from_rtc(void);
+int rtc_set_time(int[], int);
+void rtc_init_read();
+void rtc_read_and_format(int[], int);
 
 int main()
 {
 
     char Display[32];
-    int sec_val; 
-    int sec_val1 = 0; 
-    int sec_val2 = 0;
-    int min_val;
-    int min_val1 = 0;
-    int min_val2 = 0;
-    int hr_val;
-    int hr_val1 = 0;
-    int hr_val2 = 0;
-    int day_val;
-    int date_val, date_val1, date_val2, month_val, month_val1, month_val2, year_val, year_val1, year_val2;
-    
     int time_config[7] = {
         0x00,   // second
         0x20,   // minute
@@ -107,80 +87,35 @@ int main()
         0x11,   // month
         0x18    // year
     };
+    int cur_time[7];    // updated time read from rtc
     
+    // LCD initialization
     Configure_LCD_pins();
-
-    Init_LCD();					//initialize the LCD Display
-    Clear_LCD();				//clear the LCD screen
+    Init_LCD();		//initialize the LCD Display
+    Clear_LCD();    //clear the LCD screen
     
+    // I2C initialization
     init_I2C();
-    start();
-    wait_for_idle();
-    rtc_set_time(time_config, 7);
+    start_I2C();
+    int status = rtc_set_time(time_config, 7);
+    if (!status) {
+        LCD_Display("Write error");
+        return 1;
+    }
     
-    
+    //Update infinitely 
     while (1) {
-        stop();
-        start();
-        write_to_rtc(0xD0); //x68 is addr, followed by binary 0 for write
-        write_to_rtc(0x00); //reset address pointer
-        stop();
-        start();
-        write_to_rtc(0xD1); //addr + 1 for read now
+        rtc_init_read();
+        rtc_read_and_format(cur_time, 7);
         Clear_LCD();
         
-        I2C1CONbits.RCEN = 1;   //enable receiver mode
-        while (I2C1CONbits.RCEN);   //wait till over
-        read_from_rtc(&sec_val);
-        ack();
-        
-        I2C1CONbits.RCEN = 1;   //enable receiver mode
-        while (I2C1CONbits.RCEN);   //wait till over
-        read_from_rtc(&min_val);
-        ack();
-        
-        I2C1CONbits.RCEN = 1;   //enable receiver mode
-        while (I2C1CONbits.RCEN);   //wait till over
-        read_from_rtc(&hr_val);
-        ack();
-        
-        I2C1CONbits.RCEN = 1;   //enable receiver mode
-        while (I2C1CONbits.RCEN);   //wait till over
-        read_from_rtc(&day_val);
-        ack();
-        
-        I2C1CONbits.RCEN = 1;   //enable receiver mode
-        while (I2C1CONbits.RCEN);   //wait till over
-        read_from_rtc(&date_val);
-        ack();
-        
-        I2C1CONbits.RCEN = 1;   //enable receiver mode
-        while (I2C1CONbits.RCEN);   //wait till over
-        read_from_rtc(&month_val);
-        ack();
-        
-        I2C1CONbits.RCEN = 1;   //enable receiver mode
-        while (I2C1CONbits.RCEN);   //wait till over
-        read_from_rtc(&year_val); 
-        nack();
-        
-        hr_val1 = hr_val & 0x0F;
-        hr_val2 = hr_val >> 4;
-        min_val1 = min_val & 0x0F;
-        min_val2 = min_val >> 4;
-        sec_val1 = sec_val & 0x0F;
-        sec_val2 = sec_val >> 4;
-        date_val1 = date_val & 0x0F;
-        date_val2 = date_val >> 4;
-        month_val1 = month_val & 0x0F;
-        month_val2 = month_val >> 4;
-        year_val1 = year_val & 0x0F;
-        year_val2 = year_val >> 4;
-        
-        sprintf(Display,"Time: %d%d:%d%d:%d%d", hr_val2, hr_val1, min_val2, min_val1, sec_val2, sec_val1);
+        // Hours: mins: seconds
+        sprintf(Display,"Time: %d:%d:%2d", cur_time[2], cur_time[1], cur_time[0]);
         LCD_Display(Display);
-        LCDWrite(0b11000000, 0);    		//  Move Cursor to the Second Line
-        sprintf(Display,"Date: %d %d%d-%d%d-%d%d", day_val, date_val2, date_val1, month_val2, month_val1, year_val2, year_val1);
+        
+        LCDWrite(0b11000000, 0);    //  Move Cursor to the Second Line
+        // Day of week day-month-year
+        sprintf(Display,"Date: %d %d-%d-%d", cur_time[3], cur_time[4], cur_time[5], cur_time[6]);
         LCD_Display(Display);
     }
     return 0;
@@ -239,12 +174,12 @@ void LCDWrite(int LCDData, int RSValue)
     E = 1;
     E = 0;              		//  Toggle the Low 4 Bits Out
 
-//    if ((0 == (LCDData & 0xFC)) && (0 == RSValue))
-//        n = Fivems;
-//    else
-//        n = TwoHundredus;
+    if ((0 == (LCDData & 0xFC)) && (0 == RSValue))
+        n = Fivems;
+    else
+        n = TwoHundredus;
         
-    for (k = 0; k < Fivems; k++);    		//  Delay for Character
+    for (k = 0; k < n; k++);    		//  Delay for Character
 
 }  //  End LCDWrite
 
@@ -313,13 +248,18 @@ void LCD_Display(char Display[16])
 
 /*******************I2C FUNCTIONS***********************/
 
+/**
+ * Wait for all I2C1conbits to be low.  Corresponds to bus idle/wait
+ */
 void wait_for_idle(void)
 {
-    // I2C1CONbits = 00000 corresponds to bus idle/wait
     while(I2C1CON & 0x1F); // Acknowledge sequences/conditions not in progress
     while(I2C1STATbits.TRSTAT); // Ensure Master transmit is not in progress
 }
 
+/**
+ * Initialize I2C module and set relevant data
+ */
 void init_I2C(void)
 {
     I2C1BRG = 34;           //baud rate generator
@@ -327,35 +267,50 @@ void init_I2C(void)
     I2C1CONbits.DISSLW = 1; //slew rate control
 }
 
-void start(void)
+/**
+ * Send start condition.  Wait for sequence end.
+ */
+void start_I2C(void)
 {
     wait_for_idle();
-    I2C1CONbits.SEN = 1;     //start condition
-    while (I2C1CONbits.SEN); //wait till end of start sequence
+    I2C1CONbits.SEN = 1;
+    while (I2C1CONbits.SEN);
 }
 
-void stop(void)
+/**
+ * Send stop condition.  Wait for sequence end.
+ */
+void stop_I2C(void)
 {
     wait_for_idle();
-    I2C1CONbits.PEN = 1;    // stop condition
-    while (I2C1CONbits.PEN); //wait till stop sequence over
+    I2C1CONbits.PEN = 1;
+    while (I2C1CONbits.PEN); 
 }
 
-void restart(void)
+/**
+ * Send repeated start condition.  Wait for sequence end.
+ */
+void restart_I2C(void)
 {
     wait_for_idle();
-    I2C1CONbits.RSEN = 1;   //initiate repeated start on SDAx/SCLx
-    while (I2C1CONbits.RSEN);    //wait till repeated start sequence over
+    I2C1CONbits.RSEN = 1;
+    while (I2C1CONbits.RSEN);
 }
 
+/**
+ * Set acknowledgement bit and send.  Wait for sequence end.
+ */
 void ack(void)
 {
     wait_for_idle();
-    I2C1CONbits.ACKDT = 0;  //send ack during acknowledge
-    I2C1CONbits.ACKEN = 1;  //init acknowledge --> trans ACKDT
-    while (I2C1CONbits.ACKEN);  //wait till ack seq over
+    I2C1CONbits.ACKDT = 0;
+    I2C1CONbits.ACKEN = 1;
+    while (I2C1CONbits.ACKEN);
 }
 
+/**
+ * Set nacknowledgement bit and send.  Wait for sequence end.
+ */
 void nack(void)
 {
     wait_for_idle();
@@ -364,24 +319,82 @@ void nack(void)
     while (I2C1CONbits.ACKEN);   //wait till nack seq over
 }
 
+/**
+ * Send val to rtc.  Wait for transmission end.
+ * @param val
+ */
 void write_to_rtc(int val)
 {
-    I2C1TRN = val; //55 seconds
-    while (I2C1STATbits.TRSTAT);    //wait till trans over
+    I2C1TRN = val;
+    while (I2C1STATbits.TRSTAT);
 }
 
-void read_from_rtc(int *buffer)
+/**
+ * Read from rtc when buffer filled.
+ * @return
+ */
+int read_from_rtc(void)
 {
+    I2C1CONbits.RCEN = 1;   //enable receiver mode
+    while (I2C1CONbits.RCEN);   // wait till over
     while(!I2C1STATbits.RBF);   //wait until receive buffer full
-    *buffer = I2C1RCV;  //take from full receive register
+    return I2C1RCV;  //take from full receive register, clears RBF
 }
 
-void rtc_set_time(int time_config[], int size)
+/**
+ * Set time of the RTC.
+ * 
+ * @param time_config Array of time formats to write, start depends on rtc address pointer
+ * @param size
+ * @return 1 if successful, 0 if nack received from slave
+ */
+int rtc_set_time(int time_config[], int size)
 {
     int i;
+    wait_for_idle();
     write_to_rtc(0xD0);  //x68 is addr, followed by binary 0 for write
     write_to_rtc(0); //send beginning addr, will auto-increment in following writes
     for (i = 0; i < size; i++) {
+        if (I2C1STATbits.ACKSTAT)
+            return 0;
         write_to_rtc(time_config[i]);
+    }
+    return 1;
+}
+
+/**
+ * Initalize RTC for reading.  Set address pointer to beginning (seconds).
+ */
+void rtc_init_read()
+{
+    restart_I2C();
+    write_to_rtc(0xD0); //x68 is addr, followed by binary 0 for write
+    write_to_rtc(0x00); //reset address pointer
+    restart_I2C();
+    write_to_rtc(0xD1); //addr + 1 for read now
+}
+
+/**
+ * Read and format current time values from rtc.
+ * @param times array to write current times to
+ * @param size
+ */
+void rtc_read_and_format(int times[], int size)
+{
+    int i, val, fmtVal = 0;
+    for (i = 0; i < size; i++)
+    {
+        val = read_from_rtc();
+        // Build decimal value from binary format specified by rtc
+        fmtVal = val & 0x0F;
+        val >>= 4;
+        fmtVal += val * 10;
+        times[i] = fmtVal;
+        
+        // Acknowledge after each read, nack for last
+        if (i == size - 1)
+            nack();
+        else
+            ack();
     }
 }
