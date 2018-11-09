@@ -99,7 +99,7 @@ int main()
     write_to_rtc(0xD0); //x68 is addr, followed by binary 0 for write
     write_to_rtc(0); //send beginning addr, will auto-increment in following writes
     write_to_rtc(0x37); //55 seconds
-    write_to_rtc(0x37); //55 seconds
+    write_to_rtc(0x06); //55 seconds
     write_to_rtc(0x37); //55 seconds
     write_to_rtc(0x05); //5th day
     write_to_rtc(0x19); //25th day
@@ -112,16 +112,23 @@ int main()
     stop();
     start();
     write_to_rtc(0xD1); //addr + 1 for read now
+    
     I2C1CONbits.RCEN = 1;   //enable receiver mode
     while (I2C1CONbits.RCEN);   //wait till over
     read_from_rtc(&rtc_val);
-//    nack();   not working, need to figure out
-    stop();
+    ack();
     
-    sprintf(Display,"The RTC reads:");
+    sprintf(Display,"%d", rtc_val);
     LCD_Display(Display);
-    LCDWrite(0b11000000, 0);    		//  Move Cursor to the Second Line
-    sprintf(Display,"     %4d", rtc_val);
+            LCD_Display("asdf");
+
+    I2C1CONbits.RCEN = 1;   //enable receiver mode
+    while (I2C1CONbits.RCEN);   //wait till over
+    read_from_rtc(&rtc_val);
+    stop();
+
+    
+    sprintf(Display,"%d", rtc_val);
     LCD_Display(Display);
 
  
