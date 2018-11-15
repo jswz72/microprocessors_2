@@ -1,14 +1,16 @@
 /******************************************************************************
  * 
- * Program Title: Lab1_part2.c
+ * Program Title: Project_rps.c
  * 
  * Microprocessors II EECE.4800
  * 
+ * Rock-Paper-Scissors Game
+ *
  * Fall 2018
  * 
  * Jacob Sword, Jack DeGregorio
  * 
- * 09/26/2018*/
+ * 11/14/2018*/
 
 #include "xc.h"
 #pragma config BWRP = WRPROTECT_OFF
