@@ -1,6 +1,6 @@
 /******************************************************************************
  * 
- * Program Title: Lab1_part2.c
+ * Rock Paper Scissors Game Project: Red vs Green
  * 
  * Microprocessors II EECE.4800
  * 
@@ -8,9 +8,18 @@
  * 
  * Jacob Sword, Jack DeGregorio
  * 
- * 09/26/2018*/
+ * Description:
+ * Binary rock paper scissors game.
+ * Start button starts countdown.
+ * Each player makes choice from binary 1-3 via switches within countdown.
+ * At end of countdown, switch states judged to see who wins RPS.
+ * Player's LEDs are lit to indicate to players/viewers what each player chose.
+ * RGB LED is lit to indicate winner of game.
+ * LCD screen is updated with running count of wins for each side.
+ */
 
 #include "xc.h"
+
 #pragma config BWRP = WRPROTECT_OFF
 #pragma config BSS = NO_FLASH
 
