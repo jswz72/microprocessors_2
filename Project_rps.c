@@ -12,6 +12,8 @@
  * 
  * 11/14/2018*/
 
+// This is a test comment to see if I can edit the git repo
+
 #include "xc.h"
 #pragma config BWRP = WRPROTECT_OFF
 #pragma config BSS = NO_FLASH
