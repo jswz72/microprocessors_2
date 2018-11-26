@@ -1,7 +1,6 @@
 /******************************************************************************
  * 
  * Rock Paper Scissors Game Project: Red vs Green
->>>>>>> ae4a110a1415847768f6d8d463b8541fea92f3bd
  * 
  * Microprocessors II EECE.4800
  * 
@@ -24,6 +23,9 @@
  */
 
 #include "xc.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 #pragma config BWRP = WRPROTECT_OFF
 #pragma config BSS = NO_FLASH
@@ -61,13 +63,9 @@
 #define P2_SWITCH_0 PORTBbits.RB13
 #define P2_SWITCH_1 PORTBbits.RB12
 
-
-
+/**FROM LAB 4**/
 #define E  _LATA0             		//  Define the LCD Control Pins
 #define RS _LATB5
-
-void config_io(void);
-void config_timer(void);
 
 // LCD Functions
 void Configure_LCD_pins(void);
@@ -75,31 +73,46 @@ void LCDWrite(int LCDData, int RSValue);
 void Init_LCD(void);
 void Clear_LCD(void);
 void LCD_Display(char Display[16]);
-int calculate_winner();
 
 const int Twentyms = 3000;
 const int Fivems = 1000;
 const int TwoHundredus = 40;
-
+/**END FROM LAB 4*/
 const int ROCK = 0;
 const int PAPER = 1;
 const int SCISSORS = 2;
 
-int counter = 0;
+void config_io(void);
+void config_timer(void);
+int calculate_winner();
+void show_wins();
+
+
+int countdown = 0;
 int end_round = 0;
+int green_wins = 0;
+int red_wins = 0;
+
+char Display[16];
 
 void __attribute__((__interrupt__, no_auto_psv)) _T2Interrupt(void)
 {
-    if (counter == 5) {
-        _LATA2 = P1_SWITCH_0;
-        _LATA3 = P1_SWITCH_1;
-        _LATB4 = P2_SWITCH_0;
-        _LATA4 = P2_SWITCH_1;
+    Clear_LCD();
+    sprintf(Display,"Game starts: %d", 10 - countdown);
+    LCD_Display(Display);
+    show_wins();
+    if (countdown == 10) {
+        _LATA2 = P1_SWITCH_1;
+        _LATA3 = P1_SWITCH_0;
+        _LATB4 = P2_SWITCH_1;
+        _LATA4 = P2_SWITCH_0;
+        countdown = 0;
+        T2CONbits.TON = 0; // Start Timer
         end_round = 1;
     } else {
         end_round = 0;
+        countdown++;
     }
-    counter++;
     
     IFS0bits.T2IF = 0; //Clear Timer interrupt flag
 }
@@ -121,38 +134,48 @@ int main()
     Configure_LCD_pins();
     Init_LCD();
     Clear_LCD();
+    LCD_Display("Push to start");
     while(1) {
         if (end_round) {
            int winner = calculate_winner();
            char* winning_color;
             if (winner == 0) {
-                winning_color = "TIE";
+                winning_color = "Tie! No Winner:(";
                 _LATB2 = 1;
                 _LATB3 = 1;
             } else if (winner == 1) {
-                winning_color = "GRN";
+                winning_color = "Green Wins!";
+                green_wins++;
                 _LATB2 = 0;
                 _LATB3 = 1;
            } else {
-                winning_color = "RED";
+                winning_color = "Red Wins!";
+                red_wins++;
                 _LATB2 = 1;
                 _LATB3 = 0;
            }
             Clear_LCD();
-            LCD_Display(winning_color);
+  
+            LCD_Display(winning_color); // Winner: Green/Red
+            show_wins();
+            end_round = 0;
         }
     }  
 }
 
+/**
+ * Calculate winner of rock paper scissors by conventional logic
+ * @return 0 if tie, 1 if green wins, 2 if red wins
+ */
 int calculate_winner() {
     int player1 = (PORTBbits.RB13 * 2) + PORTBbits.RB12;
     int player2 = (PORTBbits.RB15 * 2) + PORTBbits.RB14;
-    if (player1 == player2)
-        return 0;
     if (player1 > SCISSORS)
         player1 = ROCK;
     if (player2 > SCISSORS)
-        player2 = ROCK;    
+        player2 = ROCK;  
+    if (player1 == player2)
+        return 0;
     switch(player1) {
         case 0:
             switch(player2) {
@@ -178,6 +201,14 @@ int calculate_winner() {
         default:
             return 0;
     }
+}
+
+void show_wins()
+{
+    LCDWrite(0b11000000, 0);    //  Move Cursor to the Second Line
+    // LCD DISPLAY Win Count
+    sprintf(Display,"Green:%d Red:%d", green_wins, red_wins);
+    LCD_Display(Display);
 }
 
 void config_io()
@@ -276,6 +307,7 @@ void Configure_LCD_pins(void)
     _LATB11 = 0;
 }  //end Configure_LCD_pins()
 
+/**FUNCTIONS FROM LAB 4*/
 void LCDWrite(int LCDData, int RSValue)
 {
     int n, k;
@@ -370,3 +402,4 @@ void LCD_Display(char Display[16])
 	for (ind = 0; Display[ind] != 0; ind++)
         LCDWrite(Display[ind], 1);
 }  						// End LCD_Display
+/** END FUNCTIONS FROM LAB 4*/
