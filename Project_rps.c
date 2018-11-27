@@ -98,6 +98,8 @@ char Display[16];
 void __attribute__((__interrupt__, no_auto_psv)) _T2Interrupt(void)
 {
     Clear_LCD();
+    _LATB2 = 0;
+    _LATB3 = 0;
     sprintf(Display,"Game starts: %d", 10 - countdown);
     LCD_Display(Display);
     show_wins();
@@ -216,7 +218,7 @@ void config_io()
     //Outputs
     _ODCA4 = 0; 					// Disable open drain
     _TRISA4 = 0;					// Config RB14 as output
-    _LATA4 = 0;					// RB14 initially low   
+    _LATA4 = 0;					    // RB14 initially low   
 
     _ODCA3 = 0;
     _TRISA3 = 0;
@@ -240,7 +242,7 @@ void config_io()
 
     //Inputs
     _ODCB15 = 0; 					// Disable open drain
-    _TRISB15 = 1;					// Config RB13 as input
+    _TRISB15 = 1;					// Config RB15 as input
     _CN11PUE = 1;                  // Enables Internal Weak-pull-up
     _PCFG9 = 1;                   // Disables analog function
 
